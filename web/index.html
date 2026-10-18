@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>musikkmix</title>
+<style>
+:root{--bg:#f3f4f8;--ink:#14182b;--mute:#5a607a;--line:#d5d8e6;--panel:#fff;--a:#2b3af0;--b:#ff3d81;--ok:#12906f;--bad:#d1334a;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#10122a;--ink:#eceefb;--mute:#a0a6c8;--line:#2a2e57;--panel:#171a3a;--a:#7f8bff;--b:#ff6fa3;--ok:#3fd6a4;--bad:#ff7088;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1060px;margin:0 auto;padding:20px}
+h1{font-size:2rem;letter-spacing:-.03em;margin:8px 0 2px}h2{font-size:1.15rem;margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.two{display:grid;grid-template-columns:1fr 2fr;gap:16px}@media(max-width:800px){.two{grid-template-columns:1fr}}
+button,.btn{font:inherit;cursor:pointer;border:2px solid var(--ink);background:transparent;color:var(--ink);padding:6px 14px;border-radius:999px;font-weight:600}
+button.main{background:var(--ink);color:var(--bg)}button.sm{padding:2px 10px;font-size:.85rem}button:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:12px;text-align:center;color:var(--mute);margin-bottom:10px}.drop.over{border-color:var(--b);color:var(--ink)}
+.list{display:flex;flex-direction:column;gap:4px;max-height:300px;overflow:auto}
+.row{display:flex;gap:8px;align-items:center;padding:4px 6px;border-radius:8px}.row:hover{background:var(--bg)}.row span.n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row small,.muted{color:var(--mute)}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:340px;overflow:auto}
+.vt{border:2px solid var(--line);border-radius:8px;overflow:hidden;position:relative;cursor:pointer;background:#000}.vt.sel{border-color:var(--b)}
+.vt video{width:100%;height:78px;object-fit:cover;display:block;pointer-events:none}
+.vt .cap{font-size:.75rem;padding:2px 6px;background:var(--panel);display:flex;justify-content:space-between;gap:4px}.vt .cap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt .x{position:absolute;top:2px;right:2px;background:var(--panel);border:0;border-radius:50%;width:22px;height:22px;padding:0;line-height:20px}
+details{border-top:1px solid var(--line);padding:8px 0}details>summary{cursor:pointer;font-weight:700;padding:4px 0}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px 22px;margin-top:8px}
+.f label{display:block;font-size:.9rem;margin-bottom:2px}.f .ctl{display:flex;gap:8px;align-items:center}.f input[type=range]{flex:1;accent-color:var(--b)}
+.f output{min-width:5ch;text-align:right;font-variant-numeric:tabular-nums}.f input[type=text],.f input[type=number],.f select{width:100%;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.f .h{font-size:.78rem;color:var(--mute)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.run{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.run label{display:flex;gap:6px;align-items:center}.run input[type=number]{width:70px}
+.chip{display:inline-block;font-size:.78rem;padding:1px 9px;border-radius:999px;border:1px solid currentColor;font-weight:700}
+.queued,.running{color:var(--a)}.done{color:var(--ok)}.failed,.cancelled{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0 2px}.bar i{display:block;height:100%;background:var(--b);transition:width .5s}
+.job video{width:100%;max-height:420px;background:#000;border-radius:8px;margin-top:8px}.job pre{max-height:220px;overflow:auto;background:var(--bg);padding:8px;border-radius:8px;font-size:.8rem;white-space:pre-wrap}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}#msg{color:var(--bad);margin-top:8px;min-height:1.2em}
+</style>
+</head>
+<body><div class="wrap">
+<h1>musikkmix</h1><p class="sub" id="sub">Last opp musikk og loop-videoer, velg innstillinger og lag en beat-synkronisert videomix.</p>
+
+<div class="two">
+  <div class="card"><h2>1. Musikk</h2>
+    <div class="drop" data-kind="audio">Slipp lydfil her eller <button class="sm" data-pick="audio">velg fil</button></div>
+    <div class="list" id="audio"></div></div>
+  <div class="card"><h2>2. Videoloops <span class="muted" id="vcount"></span></h2>
+    <div class="drop" data-kind="video">Slipp videoer her eller <button class="sm" data-pick="video">velg filer</button>
+      <button class="sm" id="selall">Velg alle</button></div>
+    <div class="vgrid" id="video"></div></div>
+</div>
+<input type="file" id="picker" hidden multiple>
+<div class="muted" id="upl" style="margin:-6px 0 12px"></div>
+
+<div class="card"><h2>3. Innstillinger</h2>
+  <div class="presets"><b>Effektsett:</b><span id="presets"></span></div>
+  <div id="groups"></div>
+</div>
+
+<div class="card run">
+  <button class="main" id="go">Lag video</button>
+  <label><input type="checkbox" id="test" checked> Test:</label><input type="number" id="testsec" value="30" min="10" max="300"> <span class="muted">sek av låten (raskt)</span>
+  <label><input type="checkbox" id="planonly"> Bare analyse</label>
+</div>
+<div id="msg"></div>
+
+<h2 style="margin-top:22px">Jobber</h2><div id="jobs"><p class="muted">Ingen jobber ennå.</p></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), api=(u,o)=>fetch(u,o).then(r=>r.json());
+let S=[],PRE={},LIB={audio:[],video:[]},audio=localStorage.getItem('mm_audio')||'',vsel=new Set(JSON.parse(localStorage.getItem('mm_vsel')||'[]'));
+const fmt=b=>b>1e6?(b/1e6).toFixed(1)+' MB':Math.round(b/1e3)+' kB';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mem=()=>{try{localStorage.setItem('mm_audio',audio);localStorage.setItem('mm_vsel',JSON.stringify([...vsel]))}catch(e){}};
+
+async function init(){
+  const d=await api('/api/schema');S=d.schema;PRE=d.presets;
+  if(!d.ffmpeg)$('#msg').textContent='ffmpeg ble ikke funnet. Kjør: sudo apt install ffmpeg';
+  $('#presets').innerHTML=Object.keys(PRE).map(n=>`<button class="sm" data-pre="${n}">${n}</button>`).join(' ');
+  const gs=[...new Set(S.map(p=>p.group))];
+  $('#groups').innerHTML=gs.map((g,i)=>`<details ${i<2?'open':''}><summary>${g}</summary><div class="fields">${S.filter(p=>p.group==g).map(field).join('')}</div></details>`).join('');
+  document.querySelectorAll('input[type=range]').forEach(r=>r.oninput=()=>r.nextElementSibling.textContent=r.value);
+  await loadLib();loadJobs();
+}
+function field(p){
+  let c;const id='p_'+p.key,v=p.default;
+  if(p.type=='range')c=`<div class="ctl"><input id="${id}" type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"><output>${v}</output></div>`;
+  else if(p.type=='select')c=`<select id="${id}">${p.options.map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`;
+  else if(p.type=='bool')c=`<input id="${id}" type="checkbox" ${v?'checked':''}>`;
+  else c=`<input id="${id}" type="${p.type=='number'?'number':'text'}" value="${v}" placeholder="${p.type=='number'?'tilfeldig':''}">`;
+  return `<div class="f"><label for="${id}">${p.label}</label>${c}${p.help?`<div class="h">${p.help}</div>`:''}</div>`;
+}
+function setP(k,v){const e=$('#p_'+k);if(!e)return;if(e.type=='checkbox')e.checked=!!v;else{e.value=v;if(e.type=='range')e.nextElementSibling.textContent=v}}
+function getP(){const o={};S.forEach(p=>{const e=$('#p_'+p.key);o[p.key]=p.type=='bool'?e.checked:p.type=='select'?e.value:(e.value===''?'':(p.type=='text'?e.value:Number(e.value)))});return o}
+$('#presets').onclick=e=>{const n=e.target.dataset.pre;if(!n)return;
+  ['crossfade','zoom','shake','pulse'].forEach(k=>setP(k,0));setP('drop_flash',false);
+  Object.entries(PRE[n]).forEach(([k,v])=>setP(k,v))};
+
+async function loadLib(){
+  LIB=await api('/api/library');
+  if(!LIB.audio.some(a=>a.name==audio))audio=LIB.audio.length?LIB.audio[0].name:'';
+  [...vsel].forEach(n=>{if(!LIB.video.some(v=>v.name==n))vsel.delete(n)});
+  $('#audio').innerHTML=LIB.audio.map(a=>`<div class="row"><input type="radio" name="au" value="${esc(a.name)}" ${a.name==audio?'checked':''}><span class="n">${esc(a.name)}</span><small>${fmt(a.size)}</small><button class="sm" data-del="audio/${esc(a.name)}">✕</button></div>`).join('')||'<span class="muted">Ingen lydfiler ennå.</span>';
+  $('#video').innerHTML=LIB.video.map(v=>`<div class="vt ${vsel.has(v.name)?'sel':''}" data-v="${esc(v.name)}"><video muted loop preload="metadata" src="/api/library/video/${encodeURIComponent(v.name)}#t=0.5"></video><button class="x" data-del="video/${esc(v.name)}" title="Slett">✕</button><div class="cap"><span>${esc(v.name)}</span><span>${fmt(v.size)}</span></div></div>`).join('')||'<span class="muted">Ingen videoer ennå.</span>';
+  $('#vcount').textContent=`(${vsel.size} valgt av ${LIB.video.length})`;mem();
+}
+$('#audio').onchange=e=>{audio=e.target.value;mem()};
+$('#video').onclick=async e=>{
+  const del=e.target.closest('[data-del]');
+  if(del){if(confirm('Slette filen fra biblioteket?')){await fetch('/api/library/'+del.dataset.del,{method:'DELETE'});loadLib()}return}
+  const t=e.target.closest('.vt');if(!t)return;const n=t.dataset.v;vsel.has(n)?vsel.delete(n):vsel.add(n);t.classList.toggle('sel');$('#vcount').textContent=`(${vsel.size} valgt av ${LIB.video.length})`;mem()};
+$('#video').onmouseover=e=>{const v=e.target.closest('.vt video, .vt');if(v){const x=v.querySelector?v.querySelector('video'):v;x&&x.play&&x.play().catch(()=>{})}};
+$('#video').onmouseout=e=>{const t=e.target.closest('.vt');t&&t.querySelector('video').pause()};
+$('#audio').onclick=async e=>{const del=e.target.closest('[data-del]');if(del&&confirm('Slette filen?')){await fetch('/api/library/'+del.dataset.del,{method:'DELETE'});loadLib()}};
+$('#selall').onclick=()=>{LIB.video.forEach(v=>vsel.add(v.name));loadLib()};
+
+let pickKind='';
+document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{pickKind=b.dataset.pick;$('#picker').accept=pickKind=='audio'?'audio/*':'video/*';$('#picker').multiple=true;$('#picker').click()});
+$('#picker').onchange=e=>{upload([...e.target.files],pickKind);e.target.value=''};
+document.querySelectorAll('.drop').forEach(z=>{
+  z.ondragover=e=>{e.preventDefault();z.classList.add('over')};z.ondragleave=()=>z.classList.remove('over');
+  z.ondrop=e=>{e.preventDefault();z.classList.remove('over');upload([...e.dataTransfer.files],z.dataset.kind)}});
+async function upload(files,kind){
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    await new Promise(res=>{const x=new XMLHttpRequest(),fd=new FormData();fd.append('file',f);
+      x.upload.onprogress=e=>$('#upl').textContent=`Laster opp ${i+1}/${files.length}: ${f.name} (${Math.round(100*e.loaded/e.total)} %)`;
+      x.onload=()=>{try{const r=JSON.parse(x.responseText);if(r.error)$('#msg').textContent=f.name+': '+r.error;else if(r.kind=='video')vsel.add(r.name);else if(r.kind=='audio')audio=r.name}catch(e){}res()};
+      x.onerror=()=>{$('#msg').textContent='Opplasting feilet: '+f.name;res()};x.open('POST','/api/library');x.send(fd)});
+  }
+  $('#upl').textContent='';await loadLib();
+}
+
+$('#go').onclick=async()=>{
+  $('#msg').textContent='';
+  const body={audio,videos:[...vsel],params:getP(),test:$('#test').checked?Number($('#testsec').value):0,plan_only:$('#planonly').checked};
+  const r=await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error)$('#msg').textContent=r.error;else loadJobs();
+};
+
+let sig={};
+async function loadJobs(){
+  const js=await api('/api/jobs'),box=$('#jobs');
+  if(!js.length){box.innerHTML='<p class="muted">Ingen jobber ennå.</p>';return}
+  const ids=js.map(j=>j.id);
+  [...box.children].forEach(c=>{if(!c.dataset.id||!ids.includes(c.dataset.id))c.remove()});
+  js.forEach((j,i)=>{
+    const s=[j.status,j.progress,j.stage,j.has_video].join('|');let el=box.querySelector(`[data-id="${j.id}"]`);
+    if(el&&sig[j.id]==s)return;
+    const fresh=!el;if(fresh){el=document.createElement('div');el.className='card job';el.dataset.id=j.id}
+    const act=j.status=='queued'||j.status=='running';
+    el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(j.audio)}</b> <span class="chip ${j.status}">${{queued:'I kø',running:'Kjører',done:'Ferdig',failed:'Feilet',cancelled:'Avbrutt'}[j.status]}</span></div>
+      <div class="muted">${new Date(j.created*1000).toLocaleString('no')} · ${j.videos.length} videoer${j.test?' · test '+j.test+' s':''}${j.plan_only?' · bare analyse':''}${j.seed!=null?' · seed '+j.seed:''}</div>
+      ${act?`<div class="bar"><i style="width:${j.progress}%"></i></div><div class="muted">${esc(j.stage)} (${j.progress} %)</div>`:''}
+      ${j.has_video?`<video controls preload="metadata" src="/api/jobs/${j.id}/video"></video>`:''}
+      <div class="acts">${j.has_video?`<a class="btn sm" href="/api/jobs/${j.id}/video?download=1">Last ned mp4</a>`:''}${j.has_plan?`<a class="btn sm" href="/api/jobs/${j.id}/plan">Plan (JSON)</a>`:''}
+        <button class="sm" data-reuse="${j.id}">Gjenbruk innstillinger</button>${j.seed!=null?`<button class="sm" data-seed="${j.seed}">Bruk seed</button>`:''}
+        ${act?`<button class="sm" data-cancel="${j.id}">Avbryt</button>`:`<button class="sm" data-rm="${j.id}">Slett</button>`}</div>
+      <details><summary>Logg</summary><pre>${esc(j.log||'')}</pre></details>`;
+    el.J=j;sig[j.id]=s;
+    if(fresh)box.insertBefore(el,box.children[i]||null);
+  });
+  clearTimeout(window.tm);window.tm=setTimeout(loadJobs,js.some(j=>j.status=='running'||j.status=='queued')?1500:6000);
+}
+$('#jobs').onclick=async e=>{
+  const t=e.target,card=t.closest('.job');if(!card)return;const j=card.J;
+  if(t.dataset.cancel){await fetch(`/api/jobs/${t.dataset.cancel}/cancel`,{method:'POST'});loadJobs()}
+  if(t.dataset.rm){await fetch('/api/jobs/'+t.dataset.rm,{method:'DELETE'});delete sig[t.dataset.rm];loadJobs()}
+  if(t.dataset.seed)setP('seed',t.dataset.seed);
+  if(t.dataset.reuse){Object.entries(j.params).forEach(([k,v])=>setP(k,v));audio=j.audio;vsel=new Set(j.videos);await loadLib();scrollTo({top:0,behavior:'smooth'})}
+};
+init();
+</script>
+</body></html>

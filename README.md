@@ -9,6 +9,7 @@ Turn seamless video loops and an mp3 into a beat-synchronised music video. Built
 - [What it does](#what-it-does)
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Web interface](#web-interface)
 - [Parameter reference](#parameter-reference)
   - [Input and output](#input-and-output)
   - [Cutting](#cutting)
@@ -58,6 +59,24 @@ Requirements: Ubuntu (or another Linux with ffmpeg 4.4 or newer), Python 3.9+. T
 ```
 
 Always test a new track with `--limit 40` first. It is much faster and shows whether the beat tracking and effect timing feel right.
+
+## Web interface
+
+A browser interface for people who prefer clicking to typing commands.
+
+```bash
+pip install flask
+./webui.py                       # then open http://127.0.0.1:8080
+./webui.py --host 0.0.0.0        # reachable from other machines on your network (no login!)
+./webui.py --port 9000 --data /big/disk/musikkmix-web
+```
+
+1. **Music and loops:** drag files into the page, or use the file buttons. Uploads go to a library (`~/musikkmix-web/library`), so you only upload each loop once and can reuse it in later mixes. Loops show as thumbnails that play on hover. Click to select, and use the cross to delete.
+2. **Settings:** every parameter from the reference below is a slider, dropdown or checkbox with a short explanation. The effect buttons (Subtle, Punchy, Wild) fill in the effect controls, which you can then adjust.
+3. **Make the video:** *Test* renders only the first N seconds of the track (fast, good for checking timing). *Bare analyse* only writes the plan and skips rendering.
+4. **Jobs:** each run shows progress, a log, a video player and a download link. *Gjenbruk innstillinger* loads a finished job's settings back into the form, and *Bruk seed* locks its random seed so you can tweak one setting and compare. Jobs run one at a time, and you can cancel them.
+
+The server has no password. Keep the default `127.0.0.1` unless you trust everyone on your network.
 
 ## Parameter reference
 

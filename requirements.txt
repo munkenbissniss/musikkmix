@@ -3,6 +3,8 @@ scipy
 scikit-learn
 librosa
 opencv-python-headless
+# Optional: web interface (webui.py)
+# flask
 # Optional (for --clip / --theme):
 # torch
 # transformers

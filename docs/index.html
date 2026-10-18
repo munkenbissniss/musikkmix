@@ -72,6 +72,7 @@ footer{padding:30px 0 60px;color:var(--mute);font-size:.95rem}
     <li><strong>Watch.</strong> Motion over time, brightness, colour profile, and optionally CLIP embeddings for what is actually in the picture.</li>
     <li><strong>Match.</strong> Each part of the song gets its own pool of loops that fit its energy. Start points inside each loop are chosen to match the music, and recently used footage is avoided.</li>
     <li><strong>Cut.</strong> Calm parts get 8–16 beat shots, intense parts 1–2. Cuts come up faster before a drop, and the drop lands on the downbeat.</li>
+    <li><strong>Add motion.</strong> Optional crossfades in calm parts, plus zoom, shake and brightness pulses locked to beats, bars or kick drums.</li>
     <li><strong>Render.</strong> ffmpeg builds a frame-accurate video at your resolution and adds the audio.</li>
   </ol>
   <p>Everything runs on your machine. No uploads, no account.</p>
@@ -89,6 +90,7 @@ pip install torch transformers pillow</pre>
   <h2 style="margin-top:28px">Use</h2>
 <pre>./musikkmix.py track.mp3 loops/ -o mix.mp4
 ./musikkmix.py track.mp3 loops/ --resolution 3840x2160 --intensity 1.3 --drop-flash
+./musikkmix.py track.mp3 loops/ --fx-preset punchy
 ./musikkmix.py track.mp3 loops/ --clip --theme "neon city at night"
 ./musikkmix.py track.mp3 loops/ --limit 40       # quick test of the first 40 s
 ./musikkmix.py track.mp3 loops/ --plan-only      # write the cut plan (JSON) only</pre>
@@ -104,6 +106,9 @@ pip install torch transformers pillow</pre>
     <tr><td><code>--continuity</code></td><td>Positive: similar shots follow each other. Negative: contrast.</td></tr>
     <tr><td><code>--pool-size</code></td><td>Number of loops per song section group.</td></tr>
     <tr><td><code>--clip</code>, <code>--theme</code></td><td>Use CLIP for visual similarity, and favour loops matching a text prompt.</td></tr>
+    <tr><td><code>--fx-preset</code></td><td><code>subtle</code>, <code>punchy</code> or <code>wild</code>: ready-made effect sets.</td></tr>
+    <tr><td><code>--crossfade</code></td><td>Dissolve between shots in calm parts (seconds, max 0.5). Intense parts and drops keep hard cuts.</td></tr>
+    <tr><td><code>--zoom</code>, <code>--shake</code>, <code>--pulse</code></td><td>Zoom, shake and brightness pulses that decay after each trigger. Choose the trigger with <code>--zoom-on</code>, <code>--shake-on</code>, <code>--pulse-on</code> (<code>beat</code>, <code>bar</code> or <code>kick</code>), and <code>--pulse-mode light|dark</code>.</td></tr>
     <tr><td><code>--drop-flash</code></td><td>White flash on drops.</td></tr>
     <tr><td><code>--audio-offset</code></td><td>Shift all cuts by N seconds if they feel early or late.</td></tr>
     <tr><td><code>--seed</code></td><td>Reproduce an earlier result. The seed is printed on every run.</td></tr>
