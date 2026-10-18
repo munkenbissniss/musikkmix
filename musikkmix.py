@@ -25,7 +25,13 @@ Hvordan det virker:
      og startpunkt etter energi, variasjon og visuell kontinuitet.
   4. KLIPPING: klippene lengdes etter energi (høy energi = 1–2 beats, rolig = 8–16 beats),
      og alltid på beat/takt. Drops får hard treff, før drop korter klippene seg (build-up).
-  5. RENDER: ffmpeg, frame-nøyaktig, og mp3 legges på.
+  5. EFFEKTER (valgfritt): crossfade i rolige partier, zoom-puls på beat/takt/kick,
+     shake på kick og lysere/mørkere pulsering på kick. Se gruppen «Effekter» i --help.
+  6. RENDER: ffmpeg, frame-nøyaktig, og mp3 legges på.
+
+Eksempel med effekter:
+    ./musikkmix.py musikk.mp3 klipp/ --fx-preset punchy
+    ./musikkmix.py musikk.mp3 klipp/ --crossfade 0.2 --zoom 0.05 --zoom-on beat --pulse 0.12 --pulse-on kick
 """
 from __future__ import annotations
 
@@ -46,6 +52,7 @@ try:
     import cv2
     import librosa
     from scipy.ndimage import uniform_filter1d, maximum_filter1d
+    from scipy.signal import butter, sosfilt
     from sklearn.cluster import KMeans
 except ImportError as e:  # pragma: no cover
     sys.exit(f"Mangler Python-pakke: {e.name}\nSe installasjonsinstruksjonene øverst i filen.")
@@ -113,6 +120,8 @@ class Audio:
     breaks: list = field(default_factory=list)     # [(a,b)]
     drops: list = field(default_factory=list)      # beat-indekser
     buildup: np.ndarray = None
+    kicks: np.ndarray = None           # tidspunkt (s) for kick/bassanslag
+    kick_strength: np.ndarray = None   # 0..1
 
 
 def snap_downbeat(b, phase, nb):
@@ -161,6 +170,20 @@ def analyze_audio(path, workdir, section_seconds, sr=22050, hop=512):
     scores = [onset_b[(idx % 4 == p) & (idx >= 1)].mean() for p in range(4)]
     phase = int(np.argmax(scores))
 
+    # kicks: plutselige økninger i lavfrekvent energi (< 150 Hz)
+    sos = butter(4, 150, btype="low", fs=sr, output="sos")
+    lrms = librosa.feature.rms(y=sosfilt(sos, y), frame_length=1024, hop_length=hop)[0]
+    ldb = librosa.amplitude_to_db(lrms + 1e-6, ref=np.max)
+    lenv = uniform_filter1d(np.maximum(0.0, np.diff(ldb, prepend=ldb[0])), 2, mode="nearest")
+    kpeaks = librosa.util.peak_pick(lenv, pre_max=3, post_max=3, pre_avg=10, post_avg=10,
+                                    delta=0.5 * float(lenv.std()), wait=max(1, int(0.12 * sr / hop)))
+    kicks = librosa.frames_to_time(kpeaks, sr=sr, hop_length=hop)
+    if len(kpeaks):
+        ks = lenv[kpeaks]
+        kick_strength = np.clip(ks / (np.percentile(ks, 90) + 1e-9), 0, 1)
+    else:
+        kick_strength = np.zeros(0)
+
     # seksjoner
     feat = np.vstack([sync(mfcc), sync(chroma)])
     feat = (feat - feat.mean(axis=1, keepdims=True)) / (feat.std(axis=1, keepdims=True) + 1e-9)
@@ -201,8 +224,8 @@ def analyze_audio(path, workdir, section_seconds, sr=22050, hop=512):
     for d in drops:
         buildup[max(0, d - 8):d] = True
 
-    log(f"  {len(sections)} seksjoner, {len(set(clusters))} grupper, {len(breaks)} breaks, {len(drops)} drops")
-    return Audio(dur, tempo, bt, energy, phase, sections, clusters, breaks, drops, buildup)
+    log(f"  {len(sections)} seksjoner, {len(set(clusters))} grupper, {len(breaks)} breaks, {len(drops)} drops, {len(kicks)} kicks")
+    return Audio(dur, tempo, bt, energy, phase, sections, clusters, breaks, drops, buildup, kicks, kick_strength)
 
 
 # --------------------------------------------------------------------------------------
@@ -477,6 +500,53 @@ def build_cache(v, need, W, H, fps, workdir, a):
     return out
 
 
+ZOOM_DECAY, SHAKE_DECAY, PULSE_DECAY = 7.0, 14.0, 10.0
+
+
+def triggers(A, s, mode, a, f0, fps):
+    """Tidspunkt (i bilder relativt til klippstart) og styrke for effekt-utløsere i et klipp."""
+    raw = []
+    if mode in ("beat", "bar"):
+        for j in range(max(1, s.i0), s.i1):
+            if mode == "bar" and (j - A.phase) % 4:
+                continue
+            raw.append((float(A.bt[j]), 1.0))
+    elif mode == "kick" and A.kicks is not None and len(A.kicks):
+        m = (A.kicks >= s.t0 - 0.02) & (A.kicks < s.t1)
+        raw = [(float(t), 0.5 + 0.5 * float(w)) for t, w in zip(A.kicks[m], A.kick_strength[m])]
+    return [(max(0.0, (t + a.audio_offset) * fps - f0), w) for t, w in raw]
+
+
+def env_expr(trig, decay, fps):
+    """ffmpeg-uttrykk: sum av eksponentielt avtagende pulser (n = bildenummer i klippet)."""
+    if not trig:
+        return "0"
+    terms = [f"{w:.2f}*gte(n,{f:.2f})*exp(-{decay:.1f}*max(0,n-{f:.2f})/{fps})" for f, w in trig]
+    return "min(1," + "+".join(terms) + ")"
+
+
+def effect_chain(s, A, a, W, H, fps, f0):
+    parts = []
+    boost = 1.6 if s.kind == "drop" else 1.0
+    if a.zoom > 0 or a.shake > 0:
+        zt = triggers(A, s, a.zoom_on, a, f0, fps) if a.zoom > 0 else []
+        st = triggers(A, s, a.shake_on, a, f0, fps) if a.shake > 0 else []
+        z = f"({1 + 2 * a.shake:.4f}+{a.zoom * boost:.4f}*{env_expr(zt, ZOOM_DECAY, fps)})"
+        parts.append(f"scale=w='trunc(iw*{z}/2)*2':h='trunc(ih*{z}/2)*2':eval=frame")
+        env = env_expr(st, SHAKE_DECAY, fps)
+        ax, ay = a.shake * W, a.shake * H
+        parts.append(f"crop={W}:{H}"
+                     f":x='max(0,min(iw-ow,(iw-ow)/2+{ax:.2f}*{env}*sin(n*13.7)))'"
+                     f":y='max(0,min(ih-oh,(ih-oh)/2+{ay:.2f}*{env}*sin(n*9.3)))'")
+    if a.pulse > 0:
+        pt = triggers(A, s, a.pulse_on, a, f0, fps)
+        sign = 1 if a.pulse_mode == "light" else -1
+        parts.append(f"eq=brightness='{sign * a.pulse * boost:.3f}*{env_expr(pt, PULSE_DECAY, fps)}':eval=frame")
+    if a.drop_flash and s.kind == "drop":
+        parts.append("fade=t=in:st=0:d=0.25:color=white")
+    return parts
+
+
 def render(slots, vids, A, audio_path, out_path, a, workdir, end_time):
     W, H = (int(x) for x in a.resolution.lower().split("x"))
     W, H = W - W % 2, H - H % 2
@@ -484,29 +554,53 @@ def render(slots, vids, A, audio_path, out_path, a, workdir, end_time):
 
     need = {}
     for s in slots:
-        need[s.video_idx] = max(need.get(s.video_idx, 0), vids[s.video_idx].duration + (s.t1 - s.t0) + 1.0)
+        need[s.video_idx] = max(need.get(s.video_idx, 0), vids[s.video_idx].duration + (s.t1 - s.t0) + 1.5)
     log(f"Normaliserer {len(need)} videoer til {W}x{H} @ {fps} fps …")
     with ThreadPoolExecutor(max(1, a.jobs)) as ex:
         caches = dict(zip(need, ex.map(lambda j: build_cache(vids[j], need[j], W, H, fps, workdir, a), need)))
 
-    jobs, clips = [], []
+    entries = []
     for k, s in enumerate(slots):
         t0 = 0.0 if k == 0 else s.t0 + a.audio_offset
         t1 = end_time if k == len(slots) - 1 else s.t1 + a.audio_offset
         f0, f1 = round(t0 * fps), round(t1 * fps)
-        if f1 - f0 < 1:
-            continue
+        if f1 - f0 >= 1:
+            entries.append({"s": s, "f0": f0, "nf": f1 - f0})
+
+    jobs, clips = [], []
+    n_xf = 0
+    for k, e in enumerate(entries):
+        s, f0, nf = e["s"], e["f0"], e["nf"]
+        prev = entries[k - 1] if k > 0 else None
+        chain = effect_chain(s, A, a, W, H, fps, f0)
+        xf = 0
+        if prev and a.crossfade > 0 and s.kind != "drop" and s.energy <= a.crossfade_max_energy:
+            xf = min(int(round(a.crossfade * (2 if s.kind == "break" else 1) * fps)), nf // 2)
+            if xf < 2:
+                xf = 0
         clip = os.path.join(workdir, f"clip_{k:05d}.mp4")
-        cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{s.offset:.3f}", "-i", caches[s.video_idx],
-               "-frames:v", str(f1 - f0), "-an"]
-        if a.drop_flash and s.kind == "drop":
-            cmd += ["-vf", "fade=t=in:st=0:d=0.25:color=white"]
-        cmd += ["-c:v", "libx264", "-preset", a.preset, "-crf", str(a.crf), "-pix_fmt", "yuv420p",
-                "-r", str(fps), "-video_track_timescale", "90000", clip]
+        cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{s.offset:.3f}", "-i", caches[s.video_idx]]
+        if xf:
+            n_xf += 1
+            ps = prev["s"]
+            tail_ss = ps.offset + prev["nf"] / fps
+            cmd += ["-ss", f"{tail_ss:.3f}", "-t", f"{(xf + 3) / fps:.3f}", "-i", caches[ps.video_idx]]
+            fg = (f"[0:v]split=2[o1][o2];"
+                  f"[o1]trim=end_frame={xf},setpts=PTS-STARTPTS[head];"
+                  f"[o2]trim=start_frame={xf},setpts=PTS-STARTPTS[rest];"
+                  f"[1:v]trim=end_frame={xf},setpts=PTS-STARTPTS[tail];"
+                  f"[tail][head]blend=all_expr='A*(1-(N+1)/{xf})+B*((N+1)/{xf})'[bl];"
+                  f"[bl][rest]concat=n=2:v=1:a=0[v];"
+                  f"[v]{','.join(chain + ['format=yuv420p'])}[out]")
+            cmd += ["-filter_complex", fg, "-map", "[out]"]
+        elif chain:
+            cmd += ["-vf", ",".join(chain + ["format=yuv420p"])]
+        cmd += ["-frames:v", str(nf), "-an", "-c:v", "libx264", "-preset", a.preset, "-crf", str(a.crf),
+                "-pix_fmt", "yuv420p", "-r", str(fps), "-video_track_timescale", "90000", clip]
         jobs.append(cmd)
         clips.append(clip)
 
-    log(f"Rendrer {len(clips)} klipp …")
+    log(f"Rendrer {len(clips)} klipp ({n_xf} med crossfade) …")
     done = [0]
 
     def work(cmd):
@@ -573,7 +667,32 @@ def main():
     g.add_argument("--plan-only", action="store_true", help="bare skriv klippeplan (JSON), ikke render")
     g.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     g.add_argument("--keep-temp", action="store_true")
+    g = ap.add_argument_group("Effekter (alle av som standard)")
+    g.add_argument("--fx-preset", choices=["subtle", "punchy", "wild"],
+                   help="ferdige effektsett; enkeltinnstillinger under overstyrer")
+    g.add_argument("--crossfade", type=float, default=0.0, help="crossfade-varighet i sek (maks 0.5; breaks får dobbel)")
+    g.add_argument("--crossfade-max-energy", type=float, default=0.65,
+                   help="crossfade bare der musikkens energi er under dette (resten får hard klipp)")
+    g.add_argument("--zoom", type=float, default=0.0, help="zoom-puls, andel (f.eks. 0.05 = 5 %%)")
+    g.add_argument("--zoom-on", choices=["beat", "bar", "kick"], default="beat")
+    g.add_argument("--shake", type=float, default=0.0, help="shake-styrke som andel av bildet (f.eks. 0.01)")
+    g.add_argument("--shake-on", choices=["beat", "bar", "kick"], default="kick")
+    g.add_argument("--pulse", type=float, default=0.0, help="lysstyrke-puls (f.eks. 0.12)")
+    g.add_argument("--pulse-on", choices=["beat", "bar", "kick"], default="kick")
+    g.add_argument("--pulse-mode", choices=["light", "dark"], default="light", help="lysere eller mørkere puls")
     a = ap.parse_args()
+    presets = {
+        "subtle": dict(crossfade=0.2, zoom=0.03, pulse=0.06),
+        "punchy": dict(crossfade=0.12, zoom=0.05, shake=0.008, pulse=0.12),
+        "wild":   dict(crossfade=0.1, zoom=0.09, shake=0.02, pulse=0.2, drop_flash=True),
+    }
+    if a.fx_preset:
+        for key, val in presets[a.fx_preset].items():
+            if not getattr(a, key):
+                setattr(a, key, val)
+        if a.fx_preset == "subtle" and a.zoom_on == "beat":
+            a.zoom_on = "bar"
+    a.crossfade = min(max(a.crossfade, 0.0), 0.5)
 
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
@@ -627,7 +746,7 @@ def main():
                 "sections": [{"beats": [x, y], "time": [float(A.bt[x]), float(A.bt[y])], "group": A.clusters[i]}
                              for i, (x, y) in enumerate(A.sections)],
                 "breaks": [[float(A.bt[x]), float(A.bt[y])] for x, y in A.breaks],
-                "drops": [float(A.bt[d]) for d in A.drops],
+                "drops": [float(A.bt[d]) for d in A.drops], "kicks": len(A.kicks),
                 "slots": [asdict(s) for s in slots],
             }, f, ensure_ascii=False, indent=1)
         log(f"Plan lagret: {plan_path}")
