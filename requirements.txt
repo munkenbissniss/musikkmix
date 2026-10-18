@@ -1,0 +1,9 @@
+numpy
+scipy
+scikit-learn
+librosa
+opencv-python-headless
+# Optional (for --clip / --theme):
+# torch
+# transformers
+# pillow

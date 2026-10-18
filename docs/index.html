@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>musikkmix – loops in, music video out</title>
+<meta name="description" content="Open-source tool that cuts seamless video loops to the beat of an mp3: tempo, structure, breaks and drops. Runs locally on Ubuntu.">
+<style>
+:root{--bg:#f3f4f8;--ink:#14182b;--mute:#5a607a;--line:#d5d8e6;--panel:#fff;--c0:#2b3af0;--c1:#ff3d81;--c2:#ffb020;--c3:#14b8a6;--code:#e9ebf5;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10122a;--ink:#eceefb;--mute:#a0a6c8;--line:#2a2e57;--panel:#171a3a;--c0:#6f7cff;--c1:#ff6fa3;--c2:#ffc24d;--c3:#3fd6c4;--code:#0c0e22;color-scheme:dark}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--c0)}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--c1);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+header{padding:56px 0 28px}
+h1{font-size:clamp(2.6rem,8vw,5.2rem);line-height:.98;letter-spacing:-.04em;margin:0 0 18px;max-width:11ch}
+.lead{font-size:1.2rem;max-width:56ch;color:var(--mute);margin:0 0 26px}
+.btns{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-block;padding:11px 20px;border-radius:999px;font-weight:600;text-decoration:none;border:2px solid var(--ink);color:var(--ink)}
+.btn.main{background:var(--ink);color:var(--bg)}
+.demo{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 14px;margin:30px 0 10px}
+.demo svg{width:100%;height:auto;display:block}
+.ctl{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;color:var(--mute);font-size:.95rem}
+.ctl input{flex:1;min-width:180px;accent-color:var(--c1)}
+.ctl output{min-width:7ch;font-variant-numeric:tabular-nums;color:var(--ink)}
+.c0{fill:var(--c0)}.c1{fill:var(--c1)}.c2{fill:var(--c2)}.c3{fill:var(--c3)}
+.tick{stroke:var(--line)}.curve{fill:none;stroke:var(--ink);stroke-width:2}
+.mark{fill:var(--mute);font-size:12px}
+section{padding:44px 0;border-top:1px solid var(--line)}
+h2{font-size:1.8rem;letter-spacing:-.02em;margin:0 0 14px}
+p{max-width:66ch}
+ol.steps{padding-left:1.2em;max-width:66ch}
+ol.steps li{margin:0 0 10px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:520px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700}
+footer{padding:30px 0 60px;color:var(--mute);font-size:.95rem}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Loops in, music video out.</h1>
+  <p class="lead">musikkmix listens to an mp3 for tempo, structure, breaks and drops, studies your seamless video loops, and cuts them together on the beat. Built for big screens, runs locally on Ubuntu.</p>
+  <div class="btns">
+    <a class="btn main" href="https://github.com/YOUR-USERNAME/musikkmix">View on GitHub</a>
+    <a class="btn" href="#install">Install</a>
+  </div>
+
+  <div class="demo">
+    <svg id="tl" viewBox="0 0 960 210" role="img" aria-label="Example cut timeline: energy curve, beat grid and video clips whose length follows the music's energy"></svg>
+    <div class="ctl">
+      <label for="int">Intensity</label>
+      <input id="int" type="range" min="0.5" max="2" step="0.05" value="1">
+      <output id="out">1.00</output>
+      <span id="cnt"></span>
+    </div>
+  </div>
+  <p style="color:var(--mute);font-size:.92rem;margin:6px 0 0">A simulated 64-beat track: intro, verse, break, drop, outro. Drag the slider to see how <code>--intensity</code> changes the cutting. Clips always start on the beat grid.</p>
+</header>
+
+<section>
+  <h2>How it works</h2>
+  <ol class="steps">
+    <li><strong>Listen.</strong> Tempo, beats and bars, energy per beat, song sections (grouped, so the second chorus looks like the first), breaks, drops and build-ups.</li>
+    <li><strong>Watch.</strong> Motion over time, brightness, colour profile, and optionally CLIP embeddings for what is actually in the picture.</li>
+    <li><strong>Match.</strong> Each part of the song gets its own pool of loops that fit its energy. Start points inside each loop are chosen to match the music, and recently used footage is avoided.</li>
+    <li><strong>Cut.</strong> Calm parts get 8–16 beat shots, intense parts 1–2. Cuts come up faster before a drop, and the drop lands on the downbeat.</li>
+    <li><strong>Render.</strong> ffmpeg builds a frame-accurate video at your resolution and adds the audio.</li>
+  </ol>
+  <p>Everything runs on your machine. No uploads, no account.</p>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+<pre>sudo apt install ffmpeg python3-venv
+git clone https://github.com/YOUR-USERNAME/musikkmix.git
+cd musikkmix
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+# optional AI matching (CLIP):
+pip install torch transformers pillow</pre>
+  <h2 style="margin-top:28px">Use</h2>
+<pre>./musikkmix.py track.mp3 loops/ -o mix.mp4
+./musikkmix.py track.mp3 loops/ --resolution 3840x2160 --intensity 1.3 --drop-flash
+./musikkmix.py track.mp3 loops/ --clip --theme "neon city at night"
+./musikkmix.py track.mp3 loops/ --limit 40       # quick test of the first 40 s
+./musikkmix.py track.mp3 loops/ --plan-only      # write the cut plan (JSON) only</pre>
+</section>
+
+<section>
+  <h2>Options</h2>
+  <div class="tw"><table>
+    <tr><th>Option</th><th>What it does</th></tr>
+    <tr><td><code>--intensity</code></td><td>Higher means faster cutting (0.5–2).</td></tr>
+    <tr><td><code>--min-cut-beats</code>, <code>--max-cut-beats</code></td><td>Shortest and longest shot, in beats (1, 2, 4, 8, 16).</td></tr>
+    <tr><td><code>--randomness</code></td><td>0.05 is nearly deterministic, 1 is wild.</td></tr>
+    <tr><td><code>--continuity</code></td><td>Positive: similar shots follow each other. Negative: contrast.</td></tr>
+    <tr><td><code>--pool-size</code></td><td>Number of loops per song section group.</td></tr>
+    <tr><td><code>--clip</code>, <code>--theme</code></td><td>Use CLIP for visual similarity, and favour loops matching a text prompt.</td></tr>
+    <tr><td><code>--drop-flash</code></td><td>White flash on drops.</td></tr>
+    <tr><td><code>--audio-offset</code></td><td>Shift all cuts by N seconds if they feel early or late.</td></tr>
+    <tr><td><code>--seed</code></td><td>Reproduce an earlier result. The seed is printed on every run.</td></tr>
+    <tr><td><code>--resolution</code>, <code>--fps</code>, <code>--crf</code>, <code>--jobs</code></td><td>Output size, frame rate, quality and parallelism.</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>Good to know</h2>
+  <p>Beat tracking is not perfect. Music with a shifting tempo or very dense rhythms can confuse it, so check a short <code>--limit</code> render first and tweak <code>--audio-offset</code> or <code>--seed</code>. The “AI” here is signal analysis, clustering and optionally CLIP, not a language model. Rendering 4K with many loops needs temporary disk space.</p>
+</section>
+
+<footer>musikkmix is MIT licensed. <a href="https://github.com/YOUR-USERNAME/musikkmix">Source on GitHub</a>.</footer>
+</div>
+
+<script>
+(function(){
+  var N=64, svg=document.getElementById('tl'), slider=document.getElementById('int'),
+      out=document.getElementById('out'), cnt=document.getElementById('cnt'), NS='http://www.w3.org/2000/svg';
+  function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  var r0=rng(7), E=[];
+  for(var i=0;i<N;i++){
+    var b=i<16?.3+.12*i/16:i<24?.6:i<32?.14:i<48?.95:.68;
+    E.push(Math.max(0,Math.min(1,b+(r0()-.5)*.1)));
+  }
+  var LEN=[1,2,4,8,16];
+  function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+  function draw(){
+    var inten=parseFloat(slider.value), rnd=rng(11), W=960, x0=0, u=W/N;
+    out.textContent=inten.toFixed(2); svg.textContent='';
+    for(var i=0;i<=N;i+=4) el('line',{x1:i*u,x2:i*u,y1:0,y2:200,'class':'tick','stroke-width':i%16?0.6:1.4});
+    var d='M0 90';
+    for(i=0;i<N;i++) d+=' L'+((i+.5)*u)+' '+(95-E[i]*80);
+    el('path',{d:d,'class':'curve'});
+    var i=0,n=0;
+    while(i<N){
+      var e=E[i], ea=Math.min(1,e*inten);
+      var idx=ea>.85?0:ea>.65?1:ea>.4?2:ea>.2?3:4;
+      if(rnd()<.25) idx+=rnd()<.5?-1:1;
+      if(i>=24&&i<32) idx=Math.max(idx,3);
+      if(i===32) idx=1;
+      idx=Math.max(0,Math.min(4,idx));
+      var L=LEN[idx], off=i%16, al=off===0?16:(off&-off);
+      L=Math.min(L,al,N-i);
+      if(i<32&&i+L>32) L=32-i;
+      if(i<24&&i+L>24) L=24-i;
+      el('rect',{x:i*u+1,y:112,width:L*u-2,height:56,rx:3,'class':'c'+Math.floor(rnd()*4)});
+      i+=L;n++;
+    }
+    el('text',{x:24*u+4,y:190,'class':'mark'}).textContent='break';
+    el('text',{x:32*u+4,y:190,'class':'mark'}).textContent='drop';
+    el('text',{x:4,y:190,'class':'mark'}).textContent='beat grid: bars every 4 beats';
+    cnt.textContent=n+' cuts';
+  }
+  slider.addEventListener('input',draw); draw();
+})();
+</script>
+</body>
+</html>
